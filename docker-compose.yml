@@ -1,0 +1,34 @@
+version: '3.7'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: 'rabbitmq'
+    ports:
+        - 5672:5672
+        - 15672:15672
+    # command: './rabbit_init'
+    volumes:
+        # - ./.docker/rabbitmq/etc/:/etc/rabbitmq/
+        - ./.docker/rabbitmq/data/:/var/lib/rabbitmq/
+        # - ./.docker/rabbitmq/logs/:/var/log/rabbitmq/
+    networks:
+        - rabbitmq_go_net
+  
+  db:
+    image: postgres:14.4
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=main
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - .dbdata:/var/lib/postgresql/data
+      - ./docmng:/docker-entrypoint-initdb.d
+    ports:
+      - 54322:5432
+
+networks:
+  rabbitmq_go_net:
+    driver: bridge
