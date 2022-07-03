@@ -41,14 +41,16 @@ if __name__ == '__main__':
     window.geometry('800x600')
     window.configure(background = "grey");
 
-    # window.bind("<Configure>", func=resize)
-
+    
     rel_width = 0.24
-    rel_height = 0.15
+    rel_height = 0.1
     img_width = 35.0
     label_font = ("Arial", 14)
+    h_m_font = ('Arial', 12)
+    h_m_rel_width = 0.2
+    h_m_rel_height = 0.04
 
-    img = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png', width=int(img_width))
+    img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png', width=int(img_width))
 
     
 
@@ -61,30 +63,76 @@ if __name__ == '__main__':
     frm.place(relx=0.0, rely=0.0, relwidth=rel_width, relheight=1.0)
 
 
-    aa = Button(frm, text="First Name", image=img, compound=LEFT, borderwidth=2, relief="raised", font=label_font)
+    aa = Button(frm, text="Documents", image=img1, compound=LEFT, borderwidth=2, relief="raised", font=label_font)
     aa.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=rel_height)
 
-    bb = Button(frm ,text = "Last Name", borderwidth=2, relief="raised", font=label_font)
+    bb = Button(frm ,text = "Settings", borderwidth=2, relief="raised", font=label_font)
     # .grid(row = 1,column = 0)
     bb.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
-   
-    cc = Button(frm ,text = "Email", borderwidth=2, relief="raised", font=label_font)
+    
+    cc = Button(frm ,text = "About", borderwidth=2, relief="raised", font=label_font)
     # .grid(row = 2,column = 0)
     cc.place(relx=0.0, rely=(rel_height+rel_height), relwidth=1.0, relheight=rel_height)
 
     dd = Label(frm)
     dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
 
-    # d = Label(window ,text = "Contact Number").grid(row = 3,column = 0)
-    # a1 = Entry(window).grid(row = 0,column = 1)
-    # b1 = Entry(window).grid(row = 1,column = 1)
-    # c1 = Entry(window).grid(row = 2,column = 1)
-    # d1 = Entry(window).grid(row = 3,column = 1)
+    # document list menu
 
+    frm_doc_header = Frame(window, name='right_frame_header', background="blue")
+    frm_doc_header.place(relx=rel_width, rely=0.0, relwidth=(1.0 - rel_width), relheight=h_m_rel_height)
 
+    img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
 
+    mn_button = Button(frm_doc_header, name='list_add', text = "add", image=img2, compound=LEFT, borderwidth=1, relief='groove', font=h_m_font)
+    mn_button.place(relx=0.0, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
-    # btn = ttk.Button(window ,text="Submit").grid(row=4,column=0)
+    img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
+    mn_button = Button(frm_doc_header, name='list_edit', text = "edit", image=img3, compound=LEFT, borderwidth=1, relief='groove', font=h_m_font)
+    mn_button.place(relx=h_m_rel_width, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
+
+    img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
+    mn_button = Button(frm_doc_header, name='list_remove', text = "remove", image=img4, compound=LEFT, borderwidth=1, relief='groove', font=h_m_font)
+    mn_button.place(relx=(h_m_rel_width + h_m_rel_width), rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
+
+    mn_label = Label(frm_doc_header)
+    mn_label.place(relx=(3.0 * h_m_rel_width), rely=0.0, relwidth=(1.0 - 3.0 * h_m_rel_width), relheight=1.0)
+
+    # document list
+
+    mn_list = ttk.Treeview(window)
+    
+
+    mn_list['columns'] = ('player_id', 'player_name', 'player_Rank', 'player_states', 'player_city')
+
+    mn_list.column("#0", width=0,  stretch=NO)
+    mn_list.column("player_id",anchor=CENTER, width=80)
+    mn_list.column("player_name",anchor=CENTER,width=80)
+    mn_list.column("player_Rank",anchor=CENTER,width=80)
+    mn_list.column("player_states",anchor=CENTER,width=80)
+    mn_list.column("player_city",anchor=CENTER,width=80)
+
+    mn_list.heading("#0",text="",anchor=CENTER)
+    mn_list.heading("player_id",text="Id",anchor=CENTER)
+    mn_list.heading("player_name",text="Name",anchor=CENTER)
+    mn_list.heading("player_Rank",text="Rank",anchor=CENTER)
+    mn_list.heading("player_states",text="States",anchor=CENTER)
+    mn_list.heading("player_city",text="States",anchor=CENTER)
+
+    mn_list.insert(parent='',index='end',iid=0,text='',
+    values=('1','Ninja','101','Oklahoma', 'Moore'))
+    mn_list.insert(parent='',index='end',iid=1,text='',
+    values=('2','Ranger','102','Wisconsin', 'Green Bay'))
+    mn_list.insert(parent='',index='end',iid=2,text='',
+    values=('3','Deamon','103', 'California', 'Placentia'))
+    mn_list.insert(parent='',index='end',iid=3,text='',
+    values=('4','Dragon','104','New York' , 'White Plains'))
+    mn_list.insert(parent='',index='end',iid=4,text='',
+    values=('5','CrissCross','105','California', 'San Diego'))
+    mn_list.insert(parent='',index='end',iid=5,text='',
+    values=('6','ZaqueriBlack','106','Wisconsin' , 'TONY'))
+
+    mn_list.place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
 
     # window.attributes('-fullscreen', True)
     tracker = Tracker(window)
