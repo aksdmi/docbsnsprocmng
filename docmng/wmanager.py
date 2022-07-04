@@ -6,7 +6,7 @@ import screeninfo
 from tkinter import *
 from tkinter import ttk
 from tkcalendar import *
-import psycopg2
+import psycopg2, psycopg2.extras
 from contextlib import closing
 from datetime import datetime
 import uuid
@@ -40,19 +40,16 @@ class Tracker:
                 
                 self.width, self.height = event.width, event.height
 
-def get_all_children_list(node, result, flt=''):
-    '''recursively get widgets with name by filter
-       and get their columns name in DB'''
-    
+def get_all_input_widgets(node, result_dict):
+    '''recursively get input widgets'''
     for key, value in node.children.items():
-        if flt == '':
-            result.append((f'_{value._name}', value))
-        elif key.find(flt) > -1:
-            result.append((f'_{value._name[:(len(value._name) - len(flt))]}', value))
-
-        get_all_children_list(value, result, flt)
-
-
+        
+        if key.startswith('_'):
+            result_dict[key] = value
+            
+        get_all_input_widgets(value, result_dict)
+    
+   
 def to_type(value, type_name):
     if type_name == 'str':
         return value
@@ -70,19 +67,19 @@ def to_type(value, type_name):
 
 
 def get_all_input_values(node, result, flt=''):
-    '''recursively get columns name in DB
+    '''recursively get input fields names
        and their input values'''
     
     for key, value in node.children.items():
         cur_name = ''
         
         if flt == '':
-            cur_name = f'_{key}'
+            cur_name = key
             val_type = 'str'   
-        elif key.find(flt) > -1:
+        elif key.startswith(flt):
             chpos = key.rfind('_')
-            val_name, val_type = key[:chpos], key[(chpos + 1):]
-            cur_name = f'_{val_name[:(len(val_name) - len(flt))]}'
+            cur_name, val_type = key[:chpos], key[(chpos + 1):]
+            # cur_name = f'{val_name[:(len(val_name) - len(flt))]}'
 
         if cur_name:
             if isinstance(value, Text):
@@ -90,10 +87,9 @@ def get_all_input_values(node, result, flt=''):
             else:
                 cur_val = value.get()
             
-            cur_val = to_type(cur_val, val_type)
-
             result[0].append(cur_name)
-            result[1].append(cur_val)
+            result[1].append(to_type(cur_val, val_type))
+            
 
         get_all_input_values(value, result, flt)        
 
@@ -105,8 +101,8 @@ def write_close_document(cur_window):
 def write_document(cur_window):
 
     child_list = [[], []]
-    get_all_input_values(cur_window, child_list, 'entry')
-    get_all_input_values(cur_window, child_list, 'text')
+    get_all_input_values(cur_window, child_list, '_')
+    # get_all_input_values(cur_window, child_list, 'text')
 
     if not child_list[0]:
         return
@@ -118,14 +114,34 @@ def write_document(cur_window):
         child_list[1][0] = uuid.uuid4().bytes
         is_new = True
         
-
-    # exec_str = 'INSERT INTO documents({:s}) VALUES'.format(([el[0] for el in child_list]).join(','))
     
-    exec_str = ('''INSERT INTO
-                documents('''
-                + ','.join(child_list[0]) + ')' +
-                ''' VALUES('''
-                + ','.join(['%s' for x in child_list[0]]) + ')')
+    query_pack = []
+    if is_new:
+        exec_str = ('''INSERT INTO
+                    documents('''
+                    + ','.join(child_list[0]) + ')' +
+                    ''' VALUES('''
+                    + ','.join(['%s' for x in child_list[0]]) + ')')
+        
+        query_pack.append([exec_str, child_list[1]])
+
+    else:
+        for i in range(1, len(child_list[0])):
+            exec_str = ('''UPDATE
+                                documents
+                            SET
+                                {}=%s
+                            WHERE
+                                {}=%s'''.format(child_list[0][i], child_list[0][0]))
+            
+            query_pack.append([exec_str, [child_list[1][i], child_list[1][0]]])
+
+        # exec_str = ('''INSERT INTO
+        #             documents('''
+        #             + ','.join(child_list[0]) + ')' +
+        #             ''' VALUES('''
+        #             + ','.join(['%s' for x in child_list[0]]) + ')')
+
 
     with closing(psycopg2.connect(dbname='main', user='postgres', 
                         password='postgres', host='localhost', port=54322)) as conn:
@@ -134,12 +150,31 @@ def write_document(cur_window):
 
 
             try:
-                cursor.execute(exec_str, child_list[1])
-            
+                # cursor.execute(exec_str, child_list[1])
+
+                for query in query_pack:
+                    cursor.execute(query[0], query[1])
+                
+                
+                
                 conn.commit()
 
+                idrref_str = child_list[1][0].decode('ISO-8859-1')
+
+                update_master_list(cur_window, idrref_str, [idrref_str,
+                                                            child_list[1][1],
+                                                            child_list[1][2],
+                                                            child_list[1][4],
+                                                            child_list[1][5]])
+                        # '_idrref'
+                        # ,'_code'
+                        # ,'_description'
+                        # ,'_create_date'
+                        # ,'_sum'
+
                 if is_new:
-                    cur_window.nametowidget('idrrefentry_binary').insert(0, child_list[1][0].decode('ISO-8859-1'))
+                    cur_window.nametowidget('_idrref_binary').insert(0, idrref_str)
+                    
             except:
                 print(sys.exc_info())
                 raise Exception('Can\'t write document to DB')
@@ -159,7 +194,7 @@ def create_document_widgets(cur_window):
     mn_btn_font = ('Times', 12)    
     
     # hidden elements
-    cur_el = Entry(cur_window, name='idrrefentry_binary', font=main_font)
+    cur_el = Entry(cur_window, name='_idrref_binary', font=main_font)
 
     # command menu
     com_menu_frm = Frame(cur_window, name='com_menu')
@@ -195,23 +230,23 @@ def create_document_widgets(cur_window):
     cur_lbl = Label(frm1, name='codelabel', text = "Code", font=main_font)
     cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
 
-    cur_lbl = Entry(frm1, name='codeentry_str', font=main_font)
+    cur_lbl = Entry(frm1, name='_code_str', font=main_font)
     cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
-    cur_lbl.insert(0, 'DCODE-00000001')
+    # cur_lbl.insert(0, 'DCODE-00000001')
 
     cur_lbl = Label(frm1, name='descriptionlabel', text = "Description", font=main_font)
     cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
 
-    cur_lbl = Entry(frm1, name='descriptionentry_str', font=main_font)
+    cur_lbl = Entry(frm1, name='_description_str', font=main_font)
     cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
-    cur_lbl.insert(0, 'Document creation test')
+    # cur_lbl.insert(0, 'Document creation test')
     
     cur_lbl = Label(frm1, name='contentlabel', text = "Content", font=main_font)
     cur_lbl.place(relx=0.0, rely=(cur_rel_height + cur_rel_height), relwidth=1.0, relheight=cur_rel_height)
 
-    cur_lbl = Text(frm1, name='contenttext_str', font=main_font, borderwidth=1, relief='groove')
+    cur_lbl = Text(frm1, name='_content_str', font=main_font, borderwidth=1, relief='groove')
     cur_lbl.place(relx=0.0, rely=(3.0*cur_rel_height), relwidth=1.0, relheight=(1.0 - 3.0*cur_rel_height))
-    cur_lbl.insert(1.0, 'This is a TEST document')
+    # cur_lbl.insert(1.0, 'This is a TEST document')
 
     #right group
     frm2 = Frame(cur_window, name='right_group')
@@ -220,34 +255,89 @@ def create_document_widgets(cur_window):
     cur_lbl = Label(frm2, name='create_datelabel', text = "Create date", font=main_font)
     cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
 
-    cur_lbl = Entry(frm2, name='create_dateentry_datetime', font=main_font)
+    cur_lbl = Entry(frm2, name='_create_date_datetime', font=main_font)
     cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
-    cur_lbl.insert(0, '04.07.2022')
+    # cur_lbl.insert(0, '04.07.2022')
 
     cur_lbl = Label(frm2, name='sumlabel', text = "Sum", font=main_font)
     cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
     
 
-    cur_lbl = Entry(frm2, name='sumentry_float', font=main_font)
+    cur_lbl = Entry(frm2, name='_sum_float', font=main_font)
     cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
-    cur_lbl.insert(0, '117574.05')
+    # cur_lbl.insert(0, '117574.05')
+
+def update_master_list(cur_window, doc_id, new_values):
+    cur_mn_list = cur_window.master.nametowidget('main_list')
+    iid = 0
+    for child in cur_mn_list.get_children():
+        cur_values = cur_mn_list.item(child)['values']
+        if cur_values[0] == doc_id:
+            # for i in range(len(new_values)):
+            #     cur_values[i+1] = new_values[i]
+            cur_mn_list.item(child, values=new_values)
+            break
+        iid += 1
+    else:
+        cur_mn_list.insert(parent='',index='end',iid=iid,
+                    values=[doc_id] + new_values)
+        iid += 1
+
+
+def fill_form_db(cur_window, doc_id):
     
-
+    fields_tuple = (('_code', '_description', '_create_date', '_content', '_sum'),
+                    ('_code_str', '_description_str', '_create_date_datetime', '_content_str', '_sum_float'))
     
+    with closing(psycopg2.connect(dbname='main', user='postgres', 
+                    password='postgres', host='localhost', port=54322)) as conn:
+
+        with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
 
 
-def open_document(main_window, mn_list, idrref=None):
+            cursor.execute('''SELECT
+                            ''' + 
+                            ', '.join(fields_tuple[0]) +
+                            '''
+                            FROM
+                                    documents
+                            WHERE
+                                _idrref = %s''', [doc_id.encode('ISO-8859-1')])
+
+            row = cursor.fetchone()
+            
+            wdict = {}
+            get_all_input_widgets(cur_window, wdict)
+            
+            for i in range(len(fields_tuple[0])):
+                if isinstance(row[i], datetime):
+                    row[i] = row[i].strftime('%d.%m.%Y')
+                
+                widg = wdict[fields_tuple[1][i]]
+                if isinstance(widg, Text):
+                    widg.insert(1.0, row[i])
+                else:
+                    widg.insert(0, row[i])
+
+            wdict['_idrref_binary'].insert(0, doc_id)
+            cur_window.title('Document {}'.format(wdict['_code_str'].get()))
+
+def open_document(main_window, mn_list, edit=False):
     cur_window = Toplevel(main_window)
     
     create_document_widgets(cur_window)
+    cur_window.grab_set()
 
-    cur_window.focus()
-    cur_window.grab_set()    
-
-    if idrref == None:
+    if not edit:
         print('New doc')
-    else:
-        print('Read from DB')
+        return
+    
+    cur_window.title("New document")
+    # print('Read from DB')
+    fill_form_db(cur_window, mn_list.set(mn_list.focus())['_idrref'])
+    
+
+        
 
 
 if __name__ == '__main__':
@@ -296,7 +386,7 @@ if __name__ == '__main__':
     dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
 
 
-    mn_list = ttk.Treeview(window)
+    mn_list = ttk.Treeview(window, name='main_list')
 
     # document list menu
 
@@ -306,7 +396,7 @@ if __name__ == '__main__':
     img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
 
     mn_button = Button(frm_doc_header,
-                        command=lambda: open_document(window,  mn_list),
+                        command=lambda: open_document(window, mn_list),
                         name='list_add',
                         text = "add",
                         image=img2,
@@ -318,11 +408,28 @@ if __name__ == '__main__':
     mn_button.place(relx=0.0, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
     img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
-    mn_button = Button(frm_doc_header, name='list_edit', text = "edit", image=img3, compound=LEFT, borderwidth=1, relief='groove', font=h_m_font)
+    mn_button = Button(frm_doc_header,
+                       command=lambda: open_document(window, mn_list, edit=True),
+                       name='list_edit',
+                       text = "edit",
+                       image=img3,
+                       compound=LEFT,
+                       borderwidth=1,
+                       relief='groove',
+                       font=h_m_font)
+
     mn_button.place(relx=h_m_rel_width, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
     img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
-    mn_button = Button(frm_doc_header, name='list_remove', text = "remove", image=img4, compound=LEFT, borderwidth=1, relief='groove', font=h_m_font)
+    mn_button = Button(frm_doc_header,
+                       name='list_remove',
+                       text = "remove",
+                       image=img4,
+                       compound=LEFT,
+                       borderwidth=1,
+                       relief='groove',
+                       font=h_m_font)
+
     mn_button.place(relx=(h_m_rel_width + h_m_rel_width), rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
     mn_label = Label(frm_doc_header)
@@ -367,7 +474,7 @@ if __name__ == '__main__':
     with closing(psycopg2.connect(dbname='main', user='postgres', 
                         password='postgres', host='localhost', port=54322)) as conn:
 
-        with closing(conn.cursor()) as cursor:
+        with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
 
 
             cursor.execute('''SELECT
@@ -380,6 +487,7 @@ if __name__ == '__main__':
                                     documents LIMIT 100''')
 
             for row in cursor:
+                row[0] = row[0].tobytes().decode('ISO-8859-1')
                 mn_list.insert(parent='',index='end',iid=iid,
                     values=row)
                 iid += 1    
@@ -387,19 +495,6 @@ if __name__ == '__main__':
 
 
     #############################################################
-
-    # mn_list.insert(parent='',index='end',iid=0,text='',
-    #     values=('1','Ninja','101','Oklahoma', 'Moore'))
-    # mn_list.insert(parent='',index='end',iid=1,text='',
-    #     values=('2','Ranger','102','Wisconsin', 'Green Bay'))
-    # mn_list.insert(parent='',index='end',iid=2,text='',
-    #     values=('3','Deamon','103', 'California', 'Placentia'))
-    # mn_list.insert(parent='',index='end',iid=3,text='',
-    #     values=('4','Dragon','104','New York' , 'White Plains'))
-    # mn_list.insert(parent='',index='end',iid=4,text='',
-    #     values=('5','CrissCross','105','California', 'San Diego'))
-    # mn_list.insert(parent='',index='end',iid=5,text='',
-    #     values=('6','ZaqueriBlack','106','Wisconsin' , 'TONY'))
 
     mn_list.place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
 
