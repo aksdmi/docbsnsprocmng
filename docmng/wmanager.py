@@ -1,10 +1,15 @@
 #!/usr/bin/python3
 
+import sys
+from operator import concat
+import screeninfo
 from tkinter import *
 from tkinter import ttk
 from tkcalendar import *
 import psycopg2
 from contextlib import closing
+from datetime import datetime
+import uuid
 
 class Tracker:
     """ Toplevel windows resize event tracker. """
@@ -35,74 +40,209 @@ class Tracker:
                 
                 self.width, self.height = event.width, event.height
 
-# def create_document_widgets(cur_window):
+def get_all_children_list(node, result, flt=''):
+    '''recursively get widgets with name by filter
+       and get their columns name in DB'''
     
-    # rel_height = 0.1
+    for key, value in node.children.items():
+        if flt == '':
+            result.append((f'_{value._name}', value))
+        elif key.find(flt) > -1:
+            result.append((f'_{value._name[:(len(value._name) - len(flt))]}', value))
+
+        get_all_children_list(value, result, flt)
+
+
+def to_type(value, type_name):
+    if type_name == 'str':
+        return value
+
+    if type_name == 'int':
+        return int(value)
+    elif type_name == 'float':
+        return float(value)
+    elif type_name == 'datetime':
+        return datetime.strptime(value, '%d.%m.%Y')
+    elif type_name == 'binary':
+        return value.encode('ISO-8859-1')
+    else:
+        return value
+
+
+def get_all_input_values(node, result, flt=''):
+    '''recursively get columns name in DB
+       and their input values'''
+    
+    for key, value in node.children.items():
+        cur_name = ''
+        
+        if flt == '':
+            cur_name = f'_{key}'
+            val_type = 'str'   
+        elif key.find(flt) > -1:
+            chpos = key.rfind('_')
+            val_name, val_type = key[:chpos], key[(chpos + 1):]
+            cur_name = f'_{val_name[:(len(val_name) - len(flt))]}'
+
+        if cur_name:
+            if isinstance(value, Text):
+                cur_val = value.get('1.0', END)
+            else:
+                cur_val = value.get()
+            
+            cur_val = to_type(cur_val, val_type)
+
+            result[0].append(cur_name)
+            result[1].append(cur_val)
+
+        get_all_input_values(value, result, flt)        
+
+
+def write_close_document(cur_window):
+    write_document(cur_window)
+    cur_window.destroy()
+
+def write_document(cur_window):
+
+    child_list = [[], []]
+    get_all_input_values(cur_window, child_list, 'entry')
+    get_all_input_values(cur_window, child_list, 'text')
+
+    if not child_list[0]:
+        return
+
+    # first entry must be always idrref!!!
+    is_new = False
+    if not child_list[1][0]:
+        # child_list[0].append('_idrref')
+        child_list[1][0] = uuid.uuid4().bytes
+        is_new = True
+        
+
+    # exec_str = 'INSERT INTO documents({:s}) VALUES'.format(([el[0] for el in child_list]).join(','))
+    
+    exec_str = ('''INSERT INTO
+                documents('''
+                + ','.join(child_list[0]) + ')' +
+                ''' VALUES('''
+                + ','.join(['%s' for x in child_list[0]]) + ')')
+
+    with closing(psycopg2.connect(dbname='main', user='postgres', 
+                        password='postgres', host='localhost', port=54322)) as conn:
+
+        with closing(conn.cursor()) as cursor:
+
+
+            try:
+                cursor.execute(exec_str, child_list[1])
+            
+                conn.commit()
+
+                if is_new:
+                    cur_window.nametowidget('idrrefentry_binary').insert(0, child_list[1][0].decode('ISO-8859-1'))
+            except:
+                print(sys.exc_info())
+                raise Exception('Can\'t write document to DB')
+
+def create_document_widgets(cur_window):
+    cur_window.geometry("1080x720")
+    cur_window.title("New document")
+    
+    rel_lbl_width = 0.4
+    rel_ent_width = 0.6
+    rel_btn_width = 0.15
+    
+    com_menu_rel_height = 0.05
+    cur_rel_height = 0.05
+
+    main_font = ("Arial", 14)
+    mn_btn_font = ('Times', 12)    
+    
+    # hidden elements
+    cur_el = Entry(cur_window, name='idrrefentry_binary', font=main_font)
+
+    # command menu
+    com_menu_frm = Frame(cur_window, name='com_menu')
+    com_menu_frm.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=com_menu_rel_height)
+
+    mn_doc_button = Button(com_menu_frm,
+                        command=lambda: write_close_document(cur_window),
+                        name='doc_write_close',
+                        text = "Write and close",
+                        bg='yellow',
+                        borderwidth=2,
+                        relief='raised',
+                        font=mn_btn_font)
 
     
+    mn_doc_button.place(relx=0.0, rely=0.0, relwidth=rel_btn_width, relheight=1.0)
+
+    mn_doc_button2 = Button(com_menu_frm,
+                        command=lambda: write_document(cur_window),
+                        name='doc_write',
+                        image=img5,
+                        borderwidth=2,
+                        relief='raised')
+
+    
+    mn_doc_button2.place(relx=rel_btn_width, rely=0.0, relwidth=rel_btn_width, relheight=1.0)
 
 
+    # left group
+    frm1 = Frame(cur_window, name='left_group')
+    frm1.place(relx=0.0, rely=com_menu_rel_height, relwidth=0.5, relheight=1.0)
+
+    cur_lbl = Label(frm1, name='codelabel', text = "Code", font=main_font)
+    cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
+
+    cur_lbl = Entry(frm1, name='codeentry_str', font=main_font)
+    cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
+    cur_lbl.insert(0, 'DCODE-00000001')
+
+    cur_lbl = Label(frm1, name='descriptionlabel', text = "Description", font=main_font)
+    cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
+
+    cur_lbl = Entry(frm1, name='descriptionentry_str', font=main_font)
+    cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
+    cur_lbl.insert(0, 'Document creation test')
+    
+    cur_lbl = Label(frm1, name='contentlabel', text = "Content", font=main_font)
+    cur_lbl.place(relx=0.0, rely=(cur_rel_height + cur_rel_height), relwidth=1.0, relheight=cur_rel_height)
+
+    cur_lbl = Text(frm1, name='contenttext_str', font=main_font, borderwidth=1, relief='groove')
+    cur_lbl.place(relx=0.0, rely=(3.0*cur_rel_height), relwidth=1.0, relheight=(1.0 - 3.0*cur_rel_height))
+    cur_lbl.insert(1.0, 'This is a TEST document')
+
+    #right group
+    frm2 = Frame(cur_window, name='right_group')
+    frm2.place(relx=0.5, rely=com_menu_rel_height, relwidth=0.5, relheight=1.0)
+
+    cur_lbl = Label(frm2, name='create_datelabel', text = "Create date", font=main_font)
+    cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
+
+    cur_lbl = Entry(frm2, name='create_dateentry_datetime', font=main_font)
+    cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
+    cur_lbl.insert(0, '04.07.2022')
+
+    cur_lbl = Label(frm2, name='sumlabel', text = "Sum", font=main_font)
+    cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
+    
+
+    cur_lbl = Entry(frm2, name='sumentry_float', font=main_font)
+    cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
+    cur_lbl.insert(0, '117574.05')
+    
+
+    
 
 
 def open_document(main_window, mn_list, idrref=None):
     cur_window = Toplevel(main_window)
     
-    cur_window.geometry("640x480")
-    cur_window.title("New document")
-    
-    rel_lbl_width = 0.4
-    rel_ent_width = 0.6
-    
-    cur_rel_height = 0.05
+    create_document_widgets(cur_window)
 
-    main_font = ("Arial", 14)
-    
-    # left group
-    frm1 = Frame(cur_window, name='left_group')
-    frm1.place(relx=0.0, rely=0.0, relwidth=0.5, relheight=1.0)
-
-    cur_lbl = Label(frm1, name='codelabel', text = "Code", font=main_font)
-    cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
-
-    cur_lbl = Entry(frm1, name='codeentry', font=main_font)
-    cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
-    
-
-    cur_lbl = Label(frm1, name='descriptionlabel', text = "Description", font=main_font)
-    cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
-
-    cur_lbl = Entry(frm1, name='descriptionentry', font=main_font)
-    cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
-    
-    cur_lbl = Label(frm1, name='contentlabel', text = "Content", font=main_font)
-    cur_lbl.place(relx=0.0, rely=(cur_rel_height + cur_rel_height), relwidth=1.0, relheight=cur_rel_height)
-
-    cur_lbl = Text(frm1, name='contenttext', font=main_font, borderwidth=1, relief='groove')
-    cur_lbl.place(relx=0.0, rely=(3.0*cur_rel_height), relwidth=1.0, relheight=(1.0 - 3.0*cur_rel_height))
-
-    #right group
-    frm2 = Frame(cur_window, name='right_group')
-    frm2.place(relx=0.5, rely=0.0, relwidth=0.5, relheight=1.0)
-
-    cur_lbl = Label(frm2, name='create_datelabel', text = "Create date", font=main_font)
-    cur_lbl.place(relx=0.0, rely=0.0, relwidth=rel_lbl_width, relheight=cur_rel_height)
-
-    cur_lbl = Entry(frm2, name='create_dateentry', font=main_font)
-    cur_lbl.place(relx=rel_lbl_width, rely=0.0, relwidth=rel_ent_width, relheight=cur_rel_height)
-
-
-    cur_lbl = Label(frm2, name='sumlabel', text = "Sum", font=main_font)
-    cur_lbl.place(relx=0.0, rely=cur_rel_height, relwidth=rel_lbl_width, relheight=cur_rel_height)
-
-    cur_lbl = Entry(frm2, name='sumentry', font=main_font)
-    cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
-
-
-    
     cur_window.focus()
-    cur_window.grab_set()
-
-    
+    cur_window.grab_set()    
 
     if idrref == None:
         print('New doc')
@@ -112,9 +252,19 @@ def open_document(main_window, mn_list, idrref=None):
 
 if __name__ == '__main__':
 
+
+    mntrs = screeninfo.get_monitors()
+    mntrs_p = [x for x in mntrs if x.is_primary]
+
+    if not mntrs_p:
+        mntrs_p = [mntrs[0]]
+
+
     window = Tk()
     window.title("Document management")
-    window.geometry('800x600')
+    # window.geometry('800x600')
+    window.geometry(f'{mntrs_p[0].width}x{mntrs_p[0].height}')
+
     window.configure(background = "grey");
 
     
@@ -128,17 +278,9 @@ if __name__ == '__main__':
 
     img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png', width=int(img_width))
 
-    
-
-    # a = Label(window ,text = "First Name", image=img, width=100, height=5, font=("Arial", 14)).grid(row = 0,column = 0)
-    # a = Label(window, image=img, width=int(img_width))
-    # # a.grid(row = 0,column = 0)
-    # a.place(relx=0.0, rely=0.0, width=img_width, relheight=rel_height)
-
     frm = Frame(window, name='left_frame', background="grey")
     frm.place(relx=0.0, rely=0.0, relwidth=rel_width, relheight=1.0)
-
-
+    
     aa = Button(frm, text="Documents", image=img1, compound=LEFT, borderwidth=2, relief="raised", font=label_font)
     aa.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=rel_height)
 
@@ -264,6 +406,8 @@ if __name__ == '__main__':
     # window.attributes('-fullscreen', True)
     tracker = Tracker(window)
     tracker.bind_config()
+
+    img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/save-icon.png')
 
     window.mainloop()
 
