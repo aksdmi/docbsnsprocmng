@@ -40,16 +40,6 @@ class Tracker:
                 
                 self.width, self.height = event.width, event.height
 
-def get_all_input_widgets(node, result_dict):
-    '''recursively get input widgets'''
-    for key, value in node.children.items():
-        
-        if key.startswith('_'):
-            result_dict[key] = value
-            
-        get_all_input_widgets(value, result_dict)
-    
-   
 def to_type(value, type_name):
     if type_name == 'str':
         return value
@@ -65,7 +55,15 @@ def to_type(value, type_name):
     else:
         return value
 
-
+def get_all_input_widgets(node, result_dict):
+    '''recursively get input widgets'''
+    for key, value in node.children.items():
+        
+        if key.startswith('_'):
+            result_dict[key] = value
+            
+        get_all_input_widgets(value, result_dict)
+    
 def get_all_input_values(node, result, flt=''):
     '''recursively get input fields names
        and their input values'''
@@ -92,7 +90,6 @@ def get_all_input_values(node, result, flt=''):
             
 
         get_all_input_values(value, result, flt)        
-
 
 def write_close_document(cur_window):
     write_document(cur_window)
@@ -154,7 +151,6 @@ def write_document(cur_window):
     if is_new:
         cur_window.nametowidget('_idrref_binary').insert(0, idrref_str)
 
-
 def remove_document(mn_list):
     idrref_str = mn_list.set(mn_list.focus())['_idrref']
     idrref_b = idrref_str.encode('ISO-8859-1')
@@ -170,7 +166,6 @@ def remove_document(mn_list):
     exec_query_pack(query_pack)
         
     update_master_list(mn_list, idrref_str, remove=True)
-
 
 def create_document_widgets(cur_window):
     cur_window.geometry("1080x720")
@@ -258,7 +253,6 @@ def create_document_widgets(cur_window):
 
     cur_lbl = Entry(frm2, name='_sum_float', font=main_font)
     cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
-    # cur_lbl.insert(0, '117574.05')
 
 def update_master_list(cur_window, doc_id, new_values=None, remove=False):
     cur_mn_list = cur_window.master.nametowidget('main_list')
@@ -276,7 +270,6 @@ def update_master_list(cur_window, doc_id, new_values=None, remove=False):
         if not remove:
             cur_mn_list.insert(parent='',index='end',iid=iid,
                                 values=new_values)
-
 
 def fill_doc_from_db(cur_window, doc_id):
     
@@ -313,7 +306,6 @@ def fill_doc_from_db(cur_window, doc_id):
     
     wdict['_idrref_binary'].insert(0, doc_id)
     cur_window.title('Document {}'.format(wdict['_code_str'].get()))
-            
 
 def open_document(main_window, mn_list, edit=False):
     cur_window = Toplevel(main_window)
@@ -336,7 +328,7 @@ def mn_list_doubleclick(event):
     tree = event.widget
     open_document(tree.master, tree, edit=True)        
 
-def fill_main_window(window, mn_list):
+def create_main_window_widgets(window, mn_list):
     mntrs = screeninfo.get_monitors()
     mntrs_p = [x for x in mntrs if x.is_primary]
 
@@ -462,7 +454,6 @@ def exec_query_pack(query_pack, need_result=False):
 
             if not need_result:
                 conn.commit()
-                    
 
 def fill_list_from_db(mn_list):
     
@@ -490,8 +481,6 @@ def fill_list_from_db(mn_list):
                 values=row)
             iid += 1
 
-    
-
 if __name__ == '__main__':
 
     window = Tk()
@@ -503,7 +492,7 @@ if __name__ == '__main__':
     
     mn_list = ttk.Treeview(window, name='main_list')
 
-    fill_main_window(window, mn_list)
+    create_main_window_widgets(window, mn_list)
         
     fill_list_from_db(mn_list)
 
@@ -515,5 +504,3 @@ if __name__ == '__main__':
     img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/save-icon.png')
 
     window.mainloop()
-
-    
