@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
+from curses import window
 import sys
-from operator import concat
 import screeninfo
 from tkinter import *
 from tkinter import ttk
@@ -102,15 +102,13 @@ def write_document(cur_window):
 
     child_list = [[], []]
     get_all_input_values(cur_window, child_list, '_')
-    # get_all_input_values(cur_window, child_list, 'text')
-
+    
     if not child_list[0]:
         return
 
     # first entry must be always idrref!!!
     is_new = False
     if not child_list[1][0]:
-        # child_list[0].append('_idrref')
         child_list[1][0] = uuid.uuid4().bytes
         is_new = True
         
@@ -137,43 +135,27 @@ def write_document(cur_window):
             query_pack.append([exec_str, [child_list[1][i], child_list[1][0]]])
 
 
-    with closing(psycopg2.connect(dbname='main', user='postgres', 
-                        password='postgres', host='localhost', port=54322)) as conn:
+    exec_query_pack(query_pack)
+    
+    idrref_str = child_list[1][0].decode('ISO-8859-1')
 
-        with closing(conn.cursor()) as cursor:
+    # '_idrref'
+    # ,'_code'
+    # ,'_description'
+    # ,'_create_date'
+    # ,'_sum'
+
+    update_master_list(cur_window, idrref_str, new_values=[idrref_str,
+                                                child_list[1][1],
+                                                child_list[1][2],
+                                                child_list[1][4],
+                                                child_list[1][5]])
+
+    if is_new:
+        cur_window.nametowidget('_idrref_binary').insert(0, idrref_str)
 
 
-            try:
-                # cursor.execute(exec_str, child_list[1])
-
-                for query in query_pack:
-                    cursor.execute(query[0], query[1])
-                
-                
-                
-                conn.commit()
-
-                idrref_str = child_list[1][0].decode('ISO-8859-1')
-
-                update_master_list(cur_window, idrref_str, new_values=[idrref_str,
-                                                            child_list[1][1],
-                                                            child_list[1][2],
-                                                            child_list[1][4],
-                                                            child_list[1][5]])
-                        # '_idrref'
-                        # ,'_code'
-                        # ,'_description'
-                        # ,'_create_date'
-                        # ,'_sum'
-
-                if is_new:
-                    cur_window.nametowidget('_idrref_binary').insert(0, idrref_str)
-                    
-            except:
-                print(sys.exc_info())
-                raise Exception('Can\'t write document to DB')
-
-def remove_document(cur_window, mn_list):
+def remove_document(mn_list):
     idrref_str = mn_list.set(mn_list.focus())['_idrref']
     idrref_b = idrref_str.encode('ISO-8859-1')
     
@@ -185,16 +167,8 @@ def remove_document(cur_window, mn_list):
                         _idrref=%s''')
     
     query_pack.append([exec_str, [idrref_b]])
-    with closing(psycopg2.connect(dbname='main', user='postgres', 
-                    password='postgres', host='localhost', port=54322)) as conn:
-
-        with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
-
-            cursor.execute(query_pack[0][0], query_pack[0][1])
-
-            conn.commit()
-
-    
+    exec_query_pack(query_pack)
+        
     update_master_list(mn_list, idrref_str, remove=True)
 
 
@@ -304,31 +278,29 @@ def update_master_list(cur_window, doc_id, new_values=None, remove=False):
                                 values=new_values)
 
 
-def fill_form_db(cur_window, doc_id):
+def fill_doc_from_db(cur_window, doc_id):
     
     fields_tuple = (('_code', '_description', '_create_date', '_content', '_sum'),
                     ('_code_str', '_description_str', '_create_date_datetime', '_content_str', '_sum_float'))
     
-    with closing(psycopg2.connect(dbname='main', user='postgres', 
-                    password='postgres', host='localhost', port=54322)) as conn:
+    query_pack = []
 
-        with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
+    exec_str = ('''SELECT
+                        {}
+                    FROM
+                        documents
+                    WHERE
+                        _idrref = %s'''.format(', '.join(fields_tuple[0])))
 
+    query_pack.append([exec_str, [doc_id.encode('ISO-8859-1')]])
 
-            cursor.execute('''SELECT
-                            ''' + 
-                            ', '.join(fields_tuple[0]) +
-                            '''
-                            FROM
-                                    documents
-                            WHERE
-                                _idrref = %s''', [doc_id.encode('ISO-8859-1')])
+    exec_query_pack(query_pack, need_result=True)
+    
+    wdict = {}
+    get_all_input_widgets(cur_window, wdict)
 
-            row = cursor.fetchone()
-            
-            wdict = {}
-            get_all_input_widgets(cur_window, wdict)
-            
+    for query in query_pack:
+        for row in query[2]:
             for i in range(len(fields_tuple[0])):
                 if isinstance(row[i], datetime):
                     row[i] = row[i].strftime('%d.%m.%Y')
@@ -338,9 +310,10 @@ def fill_form_db(cur_window, doc_id):
                     widg.insert(1.0, row[i])
                 else:
                     widg.insert(0, row[i])
-
-            wdict['_idrref_binary'].insert(0, doc_id)
-            cur_window.title('Document {}'.format(wdict['_code_str'].get()))
+    
+    wdict['_idrref_binary'].insert(0, doc_id)
+    cur_window.title('Document {}'.format(wdict['_code_str'].get()))
+            
 
 def open_document(main_window, mn_list, edit=False):
     cur_window = Toplevel(main_window)
@@ -349,14 +322,13 @@ def open_document(main_window, mn_list, edit=False):
     
 
     if not edit:
-        print('New doc')
         cur_window.wait_visibility()
         cur_window.grab_set()
         return
     
+    # read from DB
     cur_window.title("New document")
-    # print('Read from DB')
-    fill_form_db(cur_window, mn_list.set(mn_list.focus())['_idrref'])
+    fill_doc_from_db(cur_window, mn_list.set(mn_list.focus())['_idrref'])
     cur_window.wait_visibility()
     cur_window.grab_set()
 
@@ -364,18 +336,13 @@ def mn_list_doubleclick(event):
     tree = event.widget
     open_document(tree.master, tree, edit=True)        
 
-
-if __name__ == '__main__':
-
-
+def fill_main_window(window, mn_list):
     mntrs = screeninfo.get_monitors()
     mntrs_p = [x for x in mntrs if x.is_primary]
 
     if not mntrs_p:
         mntrs_p = [mntrs[0]]
 
-
-    window = Tk()
     window.title("Document management")
     # window.geometry('800x600')
     window.geometry(f'{mntrs_p[0].width}x{mntrs_p[0].height}')
@@ -391,7 +358,7 @@ if __name__ == '__main__':
     h_m_rel_width = 0.2
     h_m_rel_height = 0.04
 
-    img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png', width=int(img_width))
+    
 
     frm = Frame(window, name='left_frame', background="grey")
     frm.place(relx=0.0, rely=0.0, relwidth=rel_width, relheight=1.0)
@@ -410,15 +377,10 @@ if __name__ == '__main__':
     # dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
     dd.place(relx=0.0, rely=2.0*rel_height, relwidth=1.0, relheight=(1.0 - 2.0*rel_height))
 
-
-    mn_list = ttk.Treeview(window, name='main_list')
-
     # document list menu
 
     frm_doc_header = Frame(window, name='right_frame_header', background="blue")
     frm_doc_header.place(relx=rel_width, rely=0.0, relwidth=(1.0 - rel_width), relheight=h_m_rel_height)
-
-    img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
 
     mn_button = Button(frm_doc_header,
                         command=lambda: open_document(window, mn_list),
@@ -432,7 +394,6 @@ if __name__ == '__main__':
 
     mn_button.place(relx=0.0, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
-    img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
     mn_button = Button(frm_doc_header,
                        command=lambda: open_document(window, mn_list, edit=True),
                        name='list_edit',
@@ -445,9 +406,8 @@ if __name__ == '__main__':
 
     mn_button.place(relx=h_m_rel_width, rely=0.0, relwidth=h_m_rel_width, relheight=1.0)
 
-    img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
     mn_button = Button(frm_doc_header,
-                       command=lambda: remove_document(window, mn_list),
+                       command=lambda: remove_document(mn_list),
                        name='list_remove',
                        text = "remove",
                        image=img4,
@@ -463,21 +423,12 @@ if __name__ == '__main__':
 
     # document list
 
-    
-    
-
-
     mn_list['columns'] = ('_idrref'
                           ,'_code'
                           ,'_description'
                           ,'_create_date'
                           ,'_sum')
-
-    # mn_list.winfo_width();
-
-     # for itm in mn_list['columns']:
-    #     mn_list.column(itm, anchor=CENTER, width=80)
-
+    
     mn_list.column("#0", width=0,  stretch=NO)
     mn_list.column("_idrref",anchor=CENTER, width=0, stretch=False, minwidth=0)
     mn_list.column("_code",anchor=CENTER,width=80)
@@ -492,41 +443,72 @@ if __name__ == '__main__':
     mn_list.heading("_create_date",text="create date",anchor=CENTER)
     mn_list.heading("_sum",text="sum",anchor=CENTER)
 
-    #############################################################
+    mn_list.bind('<Double-Button-1>', mn_list_doubleclick)
+    mn_list.place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
 
-    # connect to psql 
-
-    iid = 0
+def exec_query_pack(query_pack, need_result=False):
+   
     with closing(psycopg2.connect(dbname='main', user='postgres', 
                         password='postgres', host='localhost', port=54322)) as conn:
 
         with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
 
+            # try:
+            for query in query_pack:
+                cursor.execute(query[0], query[1])
+            
+                if need_result:
+                    query.append(cursor.fetchall())
 
-            cursor.execute('''SELECT
-                                    _idrref
-                                    ,_code
-                                    ,_description
-                                    ,_create_date
-                                    ,_sum
-                            FROM
-                                    documents LIMIT 100''')
+            if not need_result:
+                conn.commit()
+                    
 
-            for row in cursor:
-                row[0] = row[0].tobytes().decode('ISO-8859-1')
-                mn_list.insert(parent='',index='end',iid=iid,
-                    values=row)
-                iid += 1    
+def fill_list_from_db(mn_list):
+    
+    query_pack = []
 
+    exec_str = ('''SELECT
+                        _idrref
+                        ,_code
+                        ,_description
+                        ,_create_date
+                        ,_sum
+                    FROM
+                        documents LIMIT 100''')
 
-    mn_list.bind('<Double-Button-1>', mn_list_doubleclick)
-    # mn_list.bind("<<TreeviewSelect>>", lambda: open_document(window, mn_list, edit=True))
+    query_pack.append([exec_str, []])
+
+    exec_query_pack(query_pack, need_result=True)
+
+    iid = 0
+
+    for query in query_pack:
+        for row in query[2]:
+            row[0] = row[0].tobytes().decode('ISO-8859-1')
+            mn_list.insert(parent='',index='end',iid=iid,
+                values=row)
+            iid += 1
+
+    
+
+if __name__ == '__main__':
+
+    window = Tk()
+
+    img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png')
+    img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
+    img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
+    img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
+    
+    mn_list = ttk.Treeview(window, name='main_list')
+
+    fill_main_window(window, mn_list)
+        
+    fill_list_from_db(mn_list)
 
     #############################################################
-
-    mn_list.place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
-
-    # window.attributes('-fullscreen', True)
+        
     tracker = Tracker(window)
     tracker.bind_config()
 
