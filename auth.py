@@ -5,6 +5,8 @@ from getpass import getpass
 from hashlib import sha256
 from redis import Redis
 
+
+
 class Auth():
     def __init__(self) -> None:
         self.redis_conn = Redis()
@@ -23,7 +25,7 @@ class Auth():
 
         pipeln.execute()
 
-        return self.get_user_by_login(login)
+        # return self.get_user_by_login(login)
 
 
     def get_user_by_login(self, login):
@@ -45,14 +47,15 @@ class Auth():
             while userpasshash != userdata[b'pass_hash']:
                 if count > 3:
                     print(f'Login FAILED! Attempts count ({count - 1}) exceed! Try again later.')
-                    sys.exit(1)
+                    return 0
                 count += 1
                 userpass = getpass(f'Password ({3 - count} attemts remain):')
                 userpasshash = sha256(userpass.encode('utf-8')).hexdigest().encode('utf-8')
 
             
             print('Login SUCCESS')
-        
+            return 2
+
         else:
 
             print('You seems to be not registered yet')
@@ -71,14 +74,24 @@ class Auth():
                 userpass = getpass('Password:')
                 userpasshash = sha256(userpass.encode('utf-8')).hexdigest()
 
-                userdata = self.update_userdata(userlog, userdata={'pass_hash' : userpasshash})
-                print(userdata)
-
+                self.update_userdata(userlog, userdata={'pass_hash' : userpasshash})
+                # print(userdata)
+                return 1
             else:
                 print('Good bye')
+                return 0
     
 
 if __name__ == '__main__':
     
     auth = Auth()
-    auth.user_dialog()
+    result = auth.user_dialog()
+    if result == 1:
+        result = auth.user_dialog()
+    
+    # succesfull authentification
+    if result == 2:
+
+        from docmng import wmanager        
+
+        wmanager.init_app()

@@ -2,7 +2,7 @@
 
 from cgitb import text
 from curses import window
-import sys
+import os
 import screeninfo
 from tkinter import *
 from tkinter import ttk
@@ -206,7 +206,7 @@ def create_document_widgets(cur_window):
     mn_doc_button2 = Button(com_menu_frm,
                         command=lambda: write_document(cur_window),
                         name='doc_write',
-                        image=img5,
+                        image=cur_window.master.img5,
                         borderwidth=2,
                         relief='raised')
 
@@ -360,7 +360,7 @@ def create_left_section(window, rel_width, h_m_rel_height):
                 name='documents_button',
                 command=lambda: show_list_section(window, rel_width, h_m_rel_height),
                 text="Documents",
-                image=img1,
+                image=window.img1,
                 compound=LEFT,
                 borderwidth=2,
                 relief="raised",
@@ -381,6 +381,8 @@ def create_left_section(window, rel_width, h_m_rel_height):
     dd.place(relx=0.0, rely=2.0*rel_height, relwidth=1.0, relheight=(1.0 - 2.0*rel_height))
 
 def create_list_menu_widgets(window, rel_width, h_m_rel_height):
+    mn_list = window.nametowidget('main_list')
+    
     h_m_font = ('Arial', 12)
     h_m_rel_width = 0.2
         
@@ -391,7 +393,7 @@ def create_list_menu_widgets(window, rel_width, h_m_rel_height):
                         command=lambda: open_document(window, mn_list),
                         name='list_add',
                         text = "add",
-                        image=img2,
+                        image=window.img2,
                         compound=LEFT,
                         borderwidth=1,
                         relief='groove',
@@ -403,7 +405,7 @@ def create_list_menu_widgets(window, rel_width, h_m_rel_height):
                        command=lambda: open_document(window, mn_list, edit=True),
                        name='list_edit',
                        text = "edit",
-                       image=img3,
+                       image=window.img3,
                        compound=LEFT,
                        borderwidth=1,
                        relief='groove',
@@ -415,7 +417,7 @@ def create_list_menu_widgets(window, rel_width, h_m_rel_height):
                        command=lambda: remove_document(mn_list),
                        name='list_remove',
                        text = "remove",
-                       image=img4,
+                       image=window.img4,
                        compound=LEFT,
                        borderwidth=1,
                        relief='groove',
@@ -547,14 +549,14 @@ def fill_list_from_db(mn_list):
                 values=row)
             iid += 1
 
-if __name__ == '__main__':
+def init_app():
 
     window = Tk()
 
-    img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png')
-    img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
-    img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
-    img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
+    window.img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png')
+    window.img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
+    window.img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
+    window.img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
     
     mn_list = ttk.Treeview(window, name='main_list')
 
@@ -567,6 +569,12 @@ if __name__ == '__main__':
     tracker = Tracker(window)
     tracker.bind_config()
 
-    img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/save-icon.png')
+    window.img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/save-icon.png')
 
     window.mainloop()
+
+
+
+if __name__ == '__main__':
+
+    init_app()
