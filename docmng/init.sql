@@ -4,7 +4,7 @@ CREATE TABLE documents(
     _description varchar(150),
     _create_date timestamp,
     _content text,
-    _sum numeric(5, 2)
+    _sum numeric(10, 2)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS documents_by_id ON documents (_idrref);
