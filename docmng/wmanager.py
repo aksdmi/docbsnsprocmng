@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from cgitb import text
 from curses import window
 import sys
 import screeninfo
@@ -168,6 +169,8 @@ def remove_document(mn_list):
     update_master_list(mn_list, idrref_str, remove=True)
 
 def create_document_widgets(cur_window):
+    main_font = ("Arial", 14)
+    
     cur_window.geometry("1080x720")
     cur_window.title("New document")
     
@@ -178,7 +181,7 @@ def create_document_widgets(cur_window):
     com_menu_rel_height = 0.05
     cur_rel_height = 0.05
 
-    main_font = ("Arial", 14)
+    
     mn_btn_font = ('Times', 12)    
     
     # hidden elements
@@ -308,8 +311,10 @@ def fill_doc_from_db(cur_window, doc_id):
     cur_window.title('Document {}'.format(wdict['_code_str'].get()))
 
 def open_document(main_window, mn_list, edit=False):
-    cur_window = Toplevel(main_window)
     
+    cur_window = Toplevel(main_window)   
+
+
     create_document_widgets(cur_window)
     
 
@@ -328,50 +333,58 @@ def mn_list_doubleclick(event):
     tree = event.widget
     open_document(tree.master, tree, edit=True)        
 
-def create_main_window_widgets(window, mn_list):
-    mntrs = screeninfo.get_monitors()
-    mntrs_p = [x for x in mntrs if x.is_primary]
-
-    if not mntrs_p:
-        mntrs_p = [mntrs[0]]
-
-    window.title("Document management")
-    # window.geometry('800x600')
-    window.geometry(f'{mntrs_p[0].width}x{mntrs_p[0].height}')
-
-    window.configure(background = "grey");
-
+def show_text_section(cur_window, rel_width, btn_name):
     
-    rel_width = 0.18
+    #hide menu and list
+    cur_window.nametowidget('main_list_header').place_forget()
+
+    cur_window.nametowidget('main_list').place_forget()
+
+    cur_window.nametowidget('main_text').place(relx=rel_width, rely=0.0, relwidth=(1.0 - rel_width), relheight=1.0)    
+
+def show_list_section(cur_window, rel_width, h_m_rel_height):
+    cur_window.nametowidget('main_list_header').place(relx=rel_width, rely=0.0, relwidth=(1.0 - rel_width), relheight=h_m_rel_height)
+    cur_window.nametowidget('main_list').place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
+
+    cur_window.nametowidget('main_text').place_forget()
+
+def create_left_section(window, rel_width, h_m_rel_height):
     rel_height = 0.1
-    img_width = 35.0
     label_font = ("Arial", 14)
-    h_m_font = ('Arial', 12)
-    h_m_rel_width = 0.2
-    h_m_rel_height = 0.04
 
-    
 
     frm = Frame(window, name='left_frame', background="grey")
     frm.place(relx=0.0, rely=0.0, relwidth=rel_width, relheight=1.0)
     
-    aa = Button(frm, text="Documents", image=img1, compound=LEFT, borderwidth=2, relief="raised", font=label_font)
-    aa.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=rel_height)
+    aa = Button(frm,
+                name='documents_button',
+                command=lambda: show_list_section(window, rel_width, h_m_rel_height),
+                text="Documents",
+                image=img1,
+                compound=LEFT,
+                borderwidth=2,
+                relief="raised",
+                font=label_font)
 
-    # bb = Button(frm ,text = "Settings", borderwidth=2, relief="raised", font=label_font)
-    # bb.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
+    aa.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=rel_height)
     
-    cc = Button(frm ,text = "About", borderwidth=2, relief="raised", font=label_font)
-    # cc.place(relx=0.0, rely=(rel_height+rel_height), relwidth=1.0, relheight=rel_height)
+    cc = Button(frm,
+                name='about_btn',
+                command=lambda: show_text_section(window, rel_width, 'about_btn'),
+                text = "About",
+                borderwidth=2,
+                relief="raised",
+                font=label_font)
     cc.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
 
     dd = Label(frm)
-    # dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
     dd.place(relx=0.0, rely=2.0*rel_height, relwidth=1.0, relheight=(1.0 - 2.0*rel_height))
 
-    # document list menu
-
-    frm_doc_header = Frame(window, name='right_frame_header', background="blue")
+def create_list_menu_widgets(window, rel_width, h_m_rel_height):
+    h_m_font = ('Arial', 12)
+    h_m_rel_width = 0.2
+        
+    frm_doc_header = Frame(window, name='main_list_header', background="blue")
     frm_doc_header.place(relx=rel_width, rely=0.0, relwidth=(1.0 - rel_width), relheight=h_m_rel_height)
 
     mn_button = Button(frm_doc_header,
@@ -413,8 +426,7 @@ def create_main_window_widgets(window, mn_list):
     mn_label = Label(frm_doc_header)
     mn_label.place(relx=(3.0 * h_m_rel_width), rely=0.0, relwidth=(1.0 - 3.0 * h_m_rel_width), relheight=1.0)
 
-    # document list
-
+def create_list_widgets(mn_list, rel_width, h_m_rel_height):
     mn_list['columns'] = ('_idrref'
                           ,'_code'
                           ,'_description'
@@ -437,6 +449,60 @@ def create_main_window_widgets(window, mn_list):
 
     mn_list.bind('<Double-Button-1>', mn_list_doubleclick)
     mn_list.place(relx=rel_width, rely=h_m_rel_height, relwidth=(1.0 - rel_width), relheight=(1.0 - h_m_rel_height))
+
+def create_text_section(window):
+    main_font = ("Arial", 16)
+    
+    cur_text = '''
+            Test project
+            \"Document and process management\"
+            Two document systems connected
+            with RabbitMQ.
+            Authentification and cache implemented by Redis service.
+            
+            \'aksdmi\' Dmitry Aksenov'''
+
+    cur_elm = Text(window, name='main_text', font=main_font, borderwidth=1, background='white')
+    cur_elm.insert(1.0, cur_text)
+    cur_elm.tag_configure("center", justify='center')
+    cur_elm.tag_add("center", 1.0, "end")
+
+
+def create_main_window_widgets(window, mn_list):
+    mntrs = screeninfo.get_monitors()
+    mntrs_p = [x for x in mntrs if x.is_primary]
+
+    if not mntrs_p:
+        mntrs_p = [mntrs[0]]
+
+    window.title("Document management")
+    
+    window.geometry(f'{mntrs_p[0].width}x{mntrs_p[0].height}')
+
+    window.configure(background = "grey");
+
+    
+    rel_width = 0.18
+    
+    # img_width = 35.0
+    
+    h_m_rel_height = 0.04
+       
+    # left section
+    create_left_section(window, rel_width, h_m_rel_height)
+
+    # right section
+
+    # document list menu
+    create_list_menu_widgets(window, rel_width, h_m_rel_height)
+    
+
+    # document list
+    create_list_widgets(mn_list, rel_width, h_m_rel_height)
+    
+    # hidden text sectiob
+    create_text_section(window)
+
 
 def exec_query_pack(query_pack, need_result=False):
    
