@@ -136,12 +136,6 @@ def write_document(cur_window):
             
             query_pack.append([exec_str, [child_list[1][i], child_list[1][0]]])
 
-        # exec_str = ('''INSERT INTO
-        #             documents('''
-        #             + ','.join(child_list[0]) + ')' +
-        #             ''' VALUES('''
-        #             + ','.join(['%s' for x in child_list[0]]) + ')')
-
 
     with closing(psycopg2.connect(dbname='main', user='postgres', 
                         password='postgres', host='localhost', port=54322)) as conn:
@@ -161,7 +155,7 @@ def write_document(cur_window):
 
                 idrref_str = child_list[1][0].decode('ISO-8859-1')
 
-                update_master_list(cur_window, idrref_str, [idrref_str,
+                update_master_list(cur_window, idrref_str, new_values=[idrref_str,
                                                             child_list[1][1],
                                                             child_list[1][2],
                                                             child_list[1][4],
@@ -178,6 +172,31 @@ def write_document(cur_window):
             except:
                 print(sys.exc_info())
                 raise Exception('Can\'t write document to DB')
+
+def remove_document(cur_window, mn_list):
+    idrref_str = mn_list.set(mn_list.focus())['_idrref']
+    idrref_b = idrref_str.encode('ISO-8859-1')
+    
+    query_pack = []
+
+    exec_str = ('''DELETE FROM
+                        documents
+                    WHERE
+                        _idrref=%s''')
+    
+    query_pack.append([exec_str, [idrref_b]])
+    with closing(psycopg2.connect(dbname='main', user='postgres', 
+                    password='postgres', host='localhost', port=54322)) as conn:
+
+        with closing(conn.cursor(cursor_factory=psycopg2.extras.DictCursor)) as cursor:
+
+            cursor.execute(query_pack[0][0], query_pack[0][1])
+
+            conn.commit()
+
+    
+    update_master_list(mn_list, idrref_str, remove=True)
+
 
 def create_document_widgets(cur_window):
     cur_window.geometry("1080x720")
@@ -267,21 +286,22 @@ def create_document_widgets(cur_window):
     cur_lbl.place(relx=rel_lbl_width, rely=cur_rel_height, relwidth=rel_ent_width, relheight=cur_rel_height)
     # cur_lbl.insert(0, '117574.05')
 
-def update_master_list(cur_window, doc_id, new_values):
+def update_master_list(cur_window, doc_id, new_values=None, remove=False):
     cur_mn_list = cur_window.master.nametowidget('main_list')
     iid = 0
     for child in cur_mn_list.get_children():
         cur_values = cur_mn_list.item(child)['values']
         if cur_values[0] == doc_id:
-            # for i in range(len(new_values)):
-            #     cur_values[i+1] = new_values[i]
-            cur_mn_list.item(child, values=new_values)
+            if remove:
+                cur_mn_list.delete(str(iid))
+            else:
+                cur_mn_list.item(child, values=new_values)
             break
         iid += 1
     else:
-        cur_mn_list.insert(parent='',index='end',iid=iid,
-                    values=[doc_id] + new_values)
-        iid += 1
+        if not remove:
+            cur_mn_list.insert(parent='',index='end',iid=iid,
+                                values=new_values)
 
 
 def fill_form_db(cur_window, doc_id):
@@ -326,18 +346,23 @@ def open_document(main_window, mn_list, edit=False):
     cur_window = Toplevel(main_window)
     
     create_document_widgets(cur_window)
-    cur_window.grab_set()
+    
 
     if not edit:
         print('New doc')
+        cur_window.wait_visibility()
+        cur_window.grab_set()
         return
     
     cur_window.title("New document")
     # print('Read from DB')
     fill_form_db(cur_window, mn_list.set(mn_list.focus())['_idrref'])
-    
+    cur_window.wait_visibility()
+    cur_window.grab_set()
 
-        
+def mn_list_doubleclick(event):
+    tree = event.widget
+    open_document(tree.master, tree, edit=True)        
 
 
 if __name__ == '__main__':
@@ -374,16 +399,16 @@ if __name__ == '__main__':
     aa = Button(frm, text="Documents", image=img1, compound=LEFT, borderwidth=2, relief="raised", font=label_font)
     aa.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=rel_height)
 
-    bb = Button(frm ,text = "Settings", borderwidth=2, relief="raised", font=label_font)
-    # .grid(row = 1,column = 0)
-    bb.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
+    # bb = Button(frm ,text = "Settings", borderwidth=2, relief="raised", font=label_font)
+    # bb.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
     
     cc = Button(frm ,text = "About", borderwidth=2, relief="raised", font=label_font)
-    # .grid(row = 2,column = 0)
-    cc.place(relx=0.0, rely=(rel_height+rel_height), relwidth=1.0, relheight=rel_height)
+    # cc.place(relx=0.0, rely=(rel_height+rel_height), relwidth=1.0, relheight=rel_height)
+    cc.place(relx=0.0, rely=rel_height, relwidth=1.0, relheight=rel_height)
 
     dd = Label(frm)
-    dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
+    # dd.place(relx=0.0, rely=3.0*rel_height, relwidth=1.0, relheight=(1.0 - 3.0*rel_height))
+    dd.place(relx=0.0, rely=2.0*rel_height, relwidth=1.0, relheight=(1.0 - 2.0*rel_height))
 
 
     mn_list = ttk.Treeview(window, name='main_list')
@@ -422,6 +447,7 @@ if __name__ == '__main__':
 
     img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
     mn_button = Button(frm_doc_header,
+                       command=lambda: remove_document(window, mn_list),
                        name='list_remove',
                        text = "remove",
                        image=img4,
@@ -493,6 +519,8 @@ if __name__ == '__main__':
                 iid += 1    
 
 
+    mn_list.bind('<Double-Button-1>', mn_list_doubleclick)
+    # mn_list.bind("<<TreeviewSelect>>", lambda: open_document(window, mn_list, edit=True))
 
     #############################################################
 
