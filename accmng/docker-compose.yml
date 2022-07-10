@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  db:
+    image: postgres:14.4
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=accmng
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - .dbdata:/var/lib/postgresql/data
+    ports:
+      - 54323:5432
