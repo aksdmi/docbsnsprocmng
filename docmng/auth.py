@@ -107,8 +107,8 @@ class Auth():
         rel_resp_height = 0.3
         rel_inpt_height = 0.2
         rel_btn_height = 1.0 - rel_resp_height - rel_inpt_height - rel_inpt_height
-        main_font = ("Arial", 12)
-        btn_font = ('Times', 12)
+        main_font = ("Arial", 14)
+        btn_font = ('Times', 14)
 
         mntrs = screeninfo.get_monitors()
         mntrs_p = [x for x in mntrs if x.is_primary]
