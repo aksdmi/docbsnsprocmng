@@ -15,7 +15,8 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (os.environ.get('DEV_DATABASE_URL') or 
-        'postgresql://postgres:postgres@127.0.0.1:54323/accmng')
+        # 'postgresql://postgres:postgres@127.0.0.1:54323/accmng')
+        'postgresql://postgres:postgres@172.17.0.1:54323/accmng')
 
 
 

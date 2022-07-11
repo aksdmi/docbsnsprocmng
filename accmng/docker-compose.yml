@@ -13,3 +13,17 @@ services:
       - .dbdata:/var/lib/postgresql/data
     ports:
       - 54323:5432
+  
+  queue:
+    build:
+      context: .
+      dockerfile: dockerfile
+    command: 'python3 consumer.py'
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+
+networks:
+  rabbitmq_go_net:
+    driver: bridge

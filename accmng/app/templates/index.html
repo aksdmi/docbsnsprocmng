@@ -6,4 +6,21 @@
 <div class="page-header">
     <h1>Hello {% if current_user.is_authenticated %}, {{ current_user.username }}!{% else %}!<br><h2>Please log in to start work.</h2>{% endif %}
 </div>
+<ul class="documents">
+    {% for document in documents %}
+    <li class="document">
+        <div class="document-content">
+            <a href="{{ url_for('.document_edit', id=document.id) }}">
+            <div class="document-date">{{ moment(document.timestamp).fromNow() }}</div>
+            <div class="document-body">{{ document.code }}</div>
+            <div class="document-body">{{ document.body }}</div>
+            <div class="document-body">{{ document.sum }}</div>
+            <div class="document-body">{{ document.confirmation_status }}</div>
+            <div class="document-body">{{ document.confirmer }}</div>
+            </a>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+
 {% endblock %}

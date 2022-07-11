@@ -1,0 +1,26 @@
+ul.documents {
+    list-style-type: none;
+    padding: 0px;
+    margin: 16px 0px 0px 0px;
+    border-top: 1px solid #e0e0e0;
+}
+ul.documents li.document {
+    padding: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+ul.documents li.document:hover {
+    background-color: #f0f0f0;
+}
+div.document-date {
+    float: right;
+}
+div.document-author {
+    font-weight: bold;
+}
+div.document-thumbnail {
+    position: absolute;
+}
+div.document-content {
+    margin-left: 48px;
+    min-height: 48px;
+}

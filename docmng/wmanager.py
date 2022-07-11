@@ -2,15 +2,19 @@
 
 from cgitb import text
 from curses import window
-import os
+from tkinter import font
 import screeninfo
 from tkinter import *
 from tkinter import ttk
-from tkcalendar import *
 import psycopg2, psycopg2.extras
 from contextlib import closing
 from datetime import datetime
 import uuid
+import sys
+import json
+
+from producer import publish
+
 
 class Tracker:
     """ Toplevel windows resize event tracker. """
@@ -135,7 +139,7 @@ def write_document(cur_window):
 
     exec_query_pack(query_pack)
     
-    idrref_str = child_list[1][0].decode('ISO-8859-1')
+    child_list[1][0] = child_list[1][0].decode('ISO-8859-1')
 
     # '_idrref'
     # ,'_code'
@@ -143,14 +147,26 @@ def write_document(cur_window):
     # ,'_create_date'
     # ,'_sum'
 
-    update_master_list(cur_window, idrref_str, new_values=[idrref_str,
+    update_master_list(cur_window, child_list[1][0], new_values=[child_list[1][0],
                                                 child_list[1][1],
                                                 child_list[1][2],
                                                 child_list[1][4],
                                                 child_list[1][5]])
 
     if is_new:
-        cur_window.nametowidget('_idrref_binary').insert(0, idrref_str)
+        cur_window.nametowidget('_idrref_binary').insert(0, child_list[1][0])
+        child_list[0].append('_operation')
+        child_list[1].append('insert')
+        msg_method = 'document_created'
+    else:
+        child_list[0].append('_operation')
+        child_list[1].append('update')
+        msg_method = 'document_updated'
+
+    # tell other app about changes with rabbitmq
+    child_list[1][4] = child_list[1][4].strftime('%d.%m.%Y')
+    
+    publish(msg_method, dict(zip(child_list[0], child_list[1])))
 
 def remove_document(mn_list):
     idrref_str = mn_list.set(mn_list.focus())['_idrref']
@@ -167,6 +183,9 @@ def remove_document(mn_list):
     exec_query_pack(query_pack)
         
     update_master_list(mn_list, idrref_str, remove=True)
+
+    publish({'_idrref' : idrref_str,
+            '_opearation' : 'delete'})
 
 def create_document_widgets(cur_window):
     main_font = ("Arial", 14)
@@ -350,7 +369,7 @@ def show_list_section(cur_window, rel_width, h_m_rel_height):
 
 def create_left_section(window, rel_width, h_m_rel_height):
     rel_height = 0.1
-    label_font = ("Arial", 14)
+    label_font = ("Arial", 12)
 
 
     frm = Frame(window, name='left_frame', background="grey")
@@ -429,6 +448,7 @@ def create_list_menu_widgets(window, rel_width, h_m_rel_height):
     mn_label.place(relx=(3.0 * h_m_rel_width), rely=0.0, relwidth=(1.0 - 3.0 * h_m_rel_width), relheight=1.0)
 
 def create_list_widgets(mn_list, rel_width, h_m_rel_height):
+    
     mn_list['columns'] = ('_idrref'
                           ,'_code'
                           ,'_description'
@@ -466,8 +486,9 @@ def create_text_section(window):
 
     cur_elm = Text(window, name='main_text', font=main_font, borderwidth=1, background='white')
     cur_elm.insert(1.0, cur_text)
-    cur_elm.tag_configure("center", justify='center')
     cur_elm.tag_add("center", 1.0, "end")
+    cur_elm.tag_configure("center", justify='center')
+    
 
 
 def create_main_window_widgets(window, mn_list):
@@ -481,7 +502,7 @@ def create_main_window_widgets(window, mn_list):
     
     window.geometry(f'{mntrs_p[0].width}x{mntrs_p[0].height}')
 
-    window.configure(background = "grey");
+    window.configure(background = "grey")
 
     
     rel_width = 0.18
@@ -541,7 +562,8 @@ def fill_list_from_db(mn_list):
     exec_query_pack(query_pack, need_result=True)
 
     iid = 0
-
+    
+    # mn_list.configure(padding=2)
     for query in query_pack:
         for row in query[2]:
             row[0] = row[0].tobytes().decode('ISO-8859-1')
@@ -553,12 +575,20 @@ def init_app():
 
     window = Tk()
 
-    window.img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/text-file.png')
-    window.img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/add.png')
-    window.img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/edit.png')
-    window.img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/delete.png')
+    window.img1 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/assets/text-file.png')
+    window.img2 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/assets/add.png')
+    window.img3 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/assets/edit.png')
+    window.img4 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/assets/delete.png')
     
-    mn_list = ttk.Treeview(window, name='main_list')
+    # style = ttk.Style()
+    # style.configure('mystyle.Treeview', relief = 'flat', borderwidth = 1)
+    # style.layout("mystyle.Treeview", [('mystyle.Treeview.treearea', {'sticky': 'nswe'})])
+
+    tree_style = ttk.Style()
+    tree_style.configure("mystyle.Treeview", highlightthickness=0, bd=0, font=('Arial', 12)) # Modify the font of the body
+    tree_style.configure("mystyle.Treeview.Heading", font=('Arial', 14)) # Modify the font of the headings
+
+    mn_list = ttk.Treeview(window, name='main_list', style="mystyle.Treeview")
 
     create_main_window_widgets(window, mn_list)
         
@@ -569,7 +599,7 @@ def init_app():
     tracker = Tracker(window)
     tracker.bind_config()
 
-    window.img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/save-icon.png')
+    window.img5 = PhotoImage(file='/home/aksdmi/Python/docbsnsprocmng/docmng/assets/save-icon.png')
 
     window.mainloop()
 
