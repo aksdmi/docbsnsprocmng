@@ -48,5 +48,5 @@ class Document(db.Model):
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     sum = db.Column(db.Numeric(10, 2))
     confirmation_status = db.Column(db.Enum(ConfirmationStatus))
-    confirmation_date = db.Column(db.DateTime, default=datetime.utcnow)
+    confirmation_date = db.Column(db.DateTime)
     responsible_id = db.Column(db.Integer, db.ForeignKey('users.id'))

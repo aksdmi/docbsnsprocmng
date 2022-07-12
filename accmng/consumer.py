@@ -1,5 +1,5 @@
 import pika, json
-from accmng import Document, db, app
+from accmng import Document, ConfirmationStatus, db, app
 from datetime import datetime
 
 app_ctx = app.app_context()
@@ -28,7 +28,7 @@ def callback(ch, method, properties, body):
                             body=data['_content'],
                             timestamp=datetime.strptime(data['_create_date'], '%d.%m.%Y'),
                             sum=data['_sum'],
-                            confirmation_status='Undefined')
+                            confirmation_status=ConfirmationStatus.undefined)
                 
         db.session.add(document)
         db.session.commit()
@@ -41,25 +41,27 @@ def callback(ch, method, properties, body):
                             description=data['_description'],
                             body=data['_content'],
                             timestamp=datetime.strptime(data['_create_date'], '%d.%m.%Y'),
-                            sum=data['_sum'])
+                            sum=data['_sum'],
+                            confirmation_status=ConfirmationStatus.undefined)
+                            
             
             db.session.add(document)
             db.session.commit()
             print('Document created')
         else:
-            product = Document.query.get(data['_idrref'])
-            product.code=data['_code']
-            product.description=data['_description']
-            product.body=data['_content']
-            product.timestamp=datetime.strptime(data['_create_date'], '%d.%m.%Y')
-            product.sum=data['_sum']
-            product.confirmation_status='Undefined'
+            
+            document.code=data['_code']
+            document.description=data['_description']
+            document.body=data['_content']
+            document.timestamp=datetime.strptime(data['_create_date'], '%d.%m.%Y')
+            document.sum=data['_sum']
+            document.confirmation_status=ConfirmationStatus.undefined
 
             db.session.commit()
             print('Document updated')
 
 
-channel.basic_consume(queue='accmng', on_message_callback=callback, auto_ack=True)
+channel.basic_consume(queue='accmng', on_message_callback=callback, auto_ack=False)
 
 print('Started consuming')
 
